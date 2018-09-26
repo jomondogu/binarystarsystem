@@ -38,7 +38,21 @@ namespace bstar
         atlas::math::Vector mForce;
 
         float mMass;
-        float tForce;
+
+        // Star Mass details
+        atlas::math::Vector s1Position;
+        atlas::math::Vector s1Velocity;
+        atlas::math::Vector s1Offset;
+        atlas::math::Vector s1OldPosition;
+        atlas::math::Vector s1Force;
+        float s1Mass;
+
+        atlas::math::Vector s2Position;
+        atlas::math::Vector s2Velocity;
+        atlas::math::Vector s2Offset;
+        atlas::math::Vector s2OldPosition;
+        atlas::math::Vector s2Force;
+        float s2Mass;
 
         int mIntegrator;
 

@@ -14,13 +14,26 @@ namespace bstar
     Body::Body() :
         mVertexBuffer(GL_ARRAY_BUFFER),
         mIndexBuffer(GL_ELEMENT_ARRAY_BUFFER),
-        mPosition(10,0,0),
-        mOffset(10,0,0),
-        mVelocity(0,0,-10),
-        mOldPosition(10,0,0),
+        mPosition(0,0,10),
+        mOffset(0,0,10),
+        mVelocity(0,0,0),
+        mOldPosition(2,0,10),
         mForce(0, 0, 0),
         mMass(1.0e11),
-        tForce(5.0e14),
+
+        s1Position(3,0,0),
+        s1Offset(3,0,0),
+        s1Velocity(0,0,0),
+        s1OldPosition(3,0,1),
+        s1Force(0, 0, 0),
+        s1Mass(1.0e13),
+
+        s2Position(-3,0,0),
+        s2Offset(-3,0,0),
+        s2Velocity(0,0,0),
+        s2OldPosition(-3,0,-1),
+        s2Force(0, 0, 0),
+        s2Mass(1.0e13),
 
         mIntegrator(0)
     {
@@ -100,17 +113,24 @@ namespace bstar
     {
 
         //determine forces at current state
-        //Gravitational
-        float gForce1 = gravity(mPosition, atlas::math::Vector(3,0,0), mMass, 1.0e13);
-        atlas::math::Vector unitDirection1 = normalize(atlas::math::Vector(3,0,0) - mPosition);
-        float gForce2 = gravity(mPosition, atlas::math::Vector(-3,0,0), mMass, 1.0e13);
-        atlas::math::Vector unitDirection2 = normalize(atlas::math::Vector(-3,0,0) - mPosition);
+        //Gravitational for Mass 1 (accounts for both stars)
+        float mgForce1 = gravity(mPosition, s1Position, mMass, s1Mass);
+        atlas::math::Vector mgDir1 = normalize(s1Position - mPosition);
+        float mgForce2 = gravity(mPosition, -s2Position, mMass, s2Mass);
+        atlas::math::Vector mgDir2 = normalize(s2Position - mPosition);
 
-        //Centripetal
-        atlas::math::Vector unitTangent = normalize(cross(atlas::math::Vector(0,1,0), mPosition - atlas::math::Vector(0,0,0)));
+        //Gravitational for Star 1 (accounts only for star 2's mass)
+        float s1gForce = gravity(s1Position, s2Position, s1Mass, s2Mass);
+        atlas::math::Vector s1gDir = normalize(s2Position - s1Position);
+
+        //Gravitational for Star 2 (accounts only for star 1's mass)
+        float s2gForce = gravity(s2Position, s1Position, s2Mass, s1Mass);
+        atlas::math::Vector s2gDir = normalize(s1Position - s2Position);
 
         //Total
-        mForce = (gForce1 * unitDirection1) + (gForce2 * unitDirection2) + (tForce * unitTangent);
+        mForce = (mgForce1 * mgDir1) + (mgForce2 * mgDir2);
+        s1Force = s1gForce * s1gDir;
+        s2Force = s2gForce * s2gDir;
 
         switch (mIntegrator)
         {
@@ -144,7 +164,6 @@ namespace bstar
         "Implicit Euler Integrator", "Verlet Integrator", "Runge-Kutta Integrator" };
         ImGui::Combo("Integrator", &mIntegrator, integratorNames.data(),
             ((int)integratorNames.size()));
-        ImGui::InputFloat("Set tangent force", &tForce, 1.0e14f, 5.0f, 1);
         ImGui::End();
     }
 
@@ -171,7 +190,7 @@ namespace bstar
         // Render star A
         {
             const math::Vector white{ 1.0f, 1.0f, 1.0f };
-            auto model = glm::translate(math::Matrix4(1.0f), atlas::math::Vector(3,0,0));
+            auto model = glm::translate(math::Matrix4(1.0f), s1Position) * glm::scale(math::Matrix4(1.0f), math::Vector(0.25f));
             glUniformMatrix4fv(mUniforms["model"], 1, GL_FALSE, &model[0][0]);
             glUniform3fv(mUniforms["materialColour"], 1, &white[0]);
             glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, 0);
@@ -180,7 +199,7 @@ namespace bstar
         // Render star B
         {
             const math::Vector white{ 1.0f, 1.0f, 1.0f };
-            auto model = glm::translate(math::Matrix4(1.0f), atlas::math::Vector(-3,0,0));
+            auto model = glm::translate(math::Matrix4(1.0f), s2Position) * glm::scale(math::Matrix4(1.0f), math::Vector(0.25f));
             glUniformMatrix4fv(mUniforms["model"], 1, GL_FALSE, &model[0][0]);
             glUniform3fv(mUniforms["materialColour"], 1, &white[0]);
             glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, 0);
@@ -189,7 +208,7 @@ namespace bstar
         // Render planet
         {
             const math::Vector black{ 0.0f, 0.0f, 0.0f };
-            auto model = glm::translate(math::Matrix4(1.0f), mPosition) * glm::scale(math::Matrix4(1.0f), math::Vector(0.25f));
+            auto model = glm::translate(math::Matrix4(1.0f), mPosition) * glm::scale(math::Matrix4(1.0f), math::Vector(0.1f));
             glUniformMatrix4fv(mUniforms["model"], 1, GL_FALSE, &model[0][0]);
             glUniform3fv(mUniforms["materialColour"], 1, &black[0]);
             glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, 0);
@@ -202,47 +221,112 @@ namespace bstar
 
     void Body::resetGeometry()
     {
-        mPosition = { 10, 0, 0 };
-        mOldPosition = mPosition;
-        mVelocity = { 0, 0, -1000 };
+        mPosition = { 0, 0, 10 };
+        mOldPosition = {2, 0, 10};
+        mVelocity = { 0, 0, 0 };
+
+        s1Position = { 3, 0, 0 };
+        s1OldPosition = {3, 0, 1};
+        s1Velocity = { 0, 0, 0 };
+
+        s2Position = { -3, 0, 0 };
+        s2OldPosition = {-3, 0, -1};
+        s2Velocity = { 0, 0, 0 };
     }
 
     void Body::eulerIntegrator(atlas::core::Time<> const& t)
     {
-        mPosition = mOldPosition + t.deltaTime * mVelocity;
-        mVelocity = mVelocity + t.deltaTime * (mForce / mMass);
+        //mass 1
+        mPosition += mOldPosition + t.deltaTime * mVelocity;
+        mVelocity += mVelocity + t.deltaTime * (mForce / mMass);
+
+        //star 1
+        s1Position += s1OldPosition + t.deltaTime * s1Velocity;
+        s1Velocity += s1Velocity + t.deltaTime * (s1Force / s1Mass);
+
+        //star 2
+        s2Position += s2OldPosition + t.deltaTime * s2Velocity;
+        s2Velocity += s2Velocity + t.deltaTime * (s2Force / s2Mass);
     }
 
     void Body::implicitEulerIntegrator(atlas::core::Time<> const& t)
     {
-        mVelocity = mVelocity + t.deltaTime * (mForce / mMass);
-        mPosition = mOldPosition + t.deltaTime * mVelocity;
+        //mass 1
+        mVelocity += mVelocity + t.deltaTime * (mForce / mMass);
+        mPosition += mOldPosition + t.deltaTime * mVelocity;
+
+        //star 1
+        s1Velocity += s1Velocity + t.deltaTime * (s1Force / s1Mass);
+        s1Position += s1OldPosition + t.deltaTime * s1Velocity;
+
+        //star 2
+        s2Velocity += s2Velocity + t.deltaTime * (s2Force / s2Mass);
+        s2Position += s2OldPosition + t.deltaTime * s2Velocity;
     }
 
     void Body::verletIntegrator(atlas::core::Time<> const& t)
     {
-        atlas::math::Vector tmp = mPosition;
+        //mass 1
+        atlas::math::Vector mtmp = mPosition;
         mPosition += mPosition - mOldPosition + t.deltaTime * t.deltaTime * (mForce / mMass);
-        mOldPosition = tmp;
+        mOldPosition = mtmp;
+
+        //star 1
+        atlas::math::Vector s1tmp = s1Position;
+        s1Position += s1Position - s1OldPosition + t.deltaTime * t.deltaTime * (s1Force / s1Mass);
+        s1OldPosition = s1tmp;
+
+        //star 2
+        atlas::math::Vector s2tmp = s2Position;
+        s2Position += s2Position - s2OldPosition + t.deltaTime * t.deltaTime * (s2Force / s2Mass);
+        s2OldPosition = s2tmp;
     }
 
     void Body::rk4Integrator(atlas::core::Time<> const& t)
     {
         namespace math = atlas::math;
 
-        //Position
+        //Mass 1 Position
         math::Vector pk1 = mVelocity;
         math::Vector pk2 = mVelocity + 0.5f * t.deltaTime * pk1;
         math::Vector pk3 = mVelocity + 0.5f * t.deltaTime * pk2;
         math::Vector pk4 = mVelocity + t.deltaTime * pk3;
-        mPosition = mOldPosition + t.deltaTime * (pk1 + 2.0f * pk2 + 2.0f * pk3 + pk4) / 6.0f;
+        mPosition += mOldPosition + t.deltaTime * (pk1 + 2.0f * pk2 + 2.0f * pk3 + pk4) / 6.0f;
 
-        //Velocity
+        //Mass 1 Velocity
         math::Vector vk1 = (mForce / mMass);
         math::Vector vk2 = (mForce / mMass) + 0.5f * t.deltaTime * vk1;
         math::Vector vk3 = (mForce / mMass) + 0.5f * t.deltaTime * vk2;
         math::Vector vk4 = (mForce / mMass) + t.deltaTime * vk3;
-        mVelocity = mVelocity + t.deltaTime * (vk1 + 2.0f * vk2 + 2.0f * vk3 + vk4) / 6.0f;
+        mVelocity += mVelocity + t.deltaTime * (vk1 + 2.0f * vk2 + 2.0f * vk3 + vk4) / 6.0f;
+
+        //Star 1 Position
+        pk1 = s1Velocity;
+        pk2 = s1Velocity + 0.5f * t.deltaTime * pk1;
+        pk3 = s1Velocity + 0.5f * t.deltaTime * pk2;
+        pk4 = s1Velocity + t.deltaTime * pk3;
+        s1Position += s1OldPosition + t.deltaTime * (pk1 + 2.0f * pk2 + 2.0f * pk3 + pk4) / 6.0f;
+
+        //Star 1 Velocity
+        vk1 = (s1Force / s1Mass);
+        vk2 = (s1Force / s1Mass) + 0.5f * t.deltaTime * vk1;
+        vk3 = (s1Force / s1Mass) + 0.5f * t.deltaTime * vk2;
+        vk4 = (s1Force / s1Mass) + t.deltaTime * vk3;
+        s1Velocity += s1Velocity + t.deltaTime * (vk1 + 2.0f * vk2 + 2.0f * vk3 + vk4) / 6.0f;
+
+        //Star 2 Position
+        pk1 = s2Velocity;
+        pk2 = s2Velocity + 0.5f * t.deltaTime * pk1;
+        pk3 = s2Velocity + 0.5f * t.deltaTime * pk2;
+        pk4 = s2Velocity + t.deltaTime * pk3;
+        s2Position += s2OldPosition + t.deltaTime * (pk1 + 2.0f * pk2 + 2.0f * pk3 + pk4) / 6.0f;
+
+        //Star 2 Velocity
+        vk1 = (s2Force / s2Mass);
+        vk2 = (s2Force / s2Mass) + 0.5f * t.deltaTime * vk1;
+        vk3 = (s2Force / s2Mass) + 0.5f * t.deltaTime * vk2;
+        vk4 = (s2Force / s2Mass) + t.deltaTime * vk3;
+        s2Velocity += s2Velocity + t.deltaTime * (vk1 + 2.0f * vk2 + 2.0f * vk3 + vk4) / 6.0f;
     }
 
     float Body::gravity(atlas::math::Vector m1_pos, atlas::math::Vector m2_pos, float m1_mass, float m2_mass)
