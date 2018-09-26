@@ -157,13 +157,16 @@ namespace bstar
 
     void Body::drawGui()
     {
-        ImGui::SetNextWindowSize(ImVec2(300, 100), ImGuiSetCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiSetCond_FirstUseEver);
         ImGui::Begin("Integration Controls");
 
         std::vector<const char*> integratorNames = { "Euler Integrator",
         "Implicit Euler Integrator", "Verlet Integrator", "Runge-Kutta Integrator" };
         ImGui::Combo("Integrator", &mIntegrator, integratorNames.data(),
             ((int)integratorNames.size()));
+        ImGui::InputFloat("Set planet mass", &mMass, 1.0e11, 5.0f, 1);
+        ImGui::InputFloat("Set star 1 mass", &s1Mass, 1.0e11, 5.0f, 1);
+        ImGui::InputFloat("Set star 2 mass", &s2Mass, 1.0e11, 5.0f, 1);
         ImGui::End();
     }
 
